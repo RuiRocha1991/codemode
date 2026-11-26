@@ -1,5 +1,5 @@
 import { TokenProvider } from "../../src/xray/auth.js";
-import { GraphQLClient } from "../../src/xray/graphql.js";
+import { GraphQLClient, type GraphQLClientOptions } from "../../src/xray/graphql.js";
 
 export const AUTH_URL = "http://xray.test/api/v2/authenticate";
 export const GRAPHQL_URL = "http://xray.test/api/v2/graphql";
@@ -48,7 +48,10 @@ export function fakeFetch(handler: GraphQLHandler, opts: { token?: () => string 
   };
 }
 
-export function makeClient(fetchImpl: (url: string, init?: RequestInit) => Promise<Response>) {
+export function makeClient(
+  fetchImpl: (url: string, init?: RequestInit) => Promise<Response>,
+  options: Partial<Omit<GraphQLClientOptions, "tokens" | "fetch">> = {},
+) {
   const tokens = new TokenProvider({
     envName: "teste",
     authUrl: AUTH_URL,
@@ -56,5 +59,13 @@ export function makeClient(fetchImpl: (url: string, init?: RequestInit) => Promi
     clientSecret: "secret",
     fetch: fetchImpl,
   });
-  return new GraphQLClient({ envName: "teste", graphqlUrl: GRAPHQL_URL, tokens, fetch: fetchImpl });
+  return new GraphQLClient({
+    envName: "teste",
+    graphqlUrl: GRAPHQL_URL,
+    tokens,
+    fetch: fetchImpl,
+    // Nos testes não se espera de verdade entre tentativas.
+    sleep: async () => {},
+    ...options,
+  });
 }
