@@ -1,7 +1,7 @@
 // Cenário B — o que o Claude escreve para: "cria testes Manual, Cucumber e Generic; 3 Test Plans,
 // um por versão; uma pasta por versão com subpastas por tipo". Uma única chamada execute.
 const project = "DEMO";
-const root = "/cenarioB-claude";
+const root = "/mcp-seed-cenarioB-claude";
 const label = "cenarioB-claude";
 const versoes = ["v1.0", "v1.1", "v2.0"];
 const tipos = ["Manual", "Cucumber", "Generic"];

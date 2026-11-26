@@ -33,7 +33,7 @@ const GHERKIN = (name: string) => `Feature: ${name}\n  Scenario: ${name}\n    Gi
  */
 export async function runScenarioB(xray: XrayApi, options: ScenarioBOptions): Promise<ScenarioBResult> {
   const { project, versions = ["v1.0", "v1.1", "v2.0"], testsPerCombo = 4, seed = Date.now() } = options;
-  const rootFolder = options.rootFolder ?? `/cenarioB-${seed}`;
+  const rootFolder = options.rootFolder ?? `/mcp-seed-cenarioB-${seed}`;
   const label = `cenarioB-${seed}`;
 
   // 1. Pastas: raiz, uma por versão, uma por tipo (pais antes dos filhos).

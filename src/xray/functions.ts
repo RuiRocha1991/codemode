@@ -12,6 +12,7 @@ export const XRAY_FUNCTION_NAMES = [
   "createTestPlan",
   "addTestsToTestPlan",
   "getTestPlanTests",
+  "cleanup",
   "graphql",
 ] as const;
 

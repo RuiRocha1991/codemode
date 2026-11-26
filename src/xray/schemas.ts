@@ -119,6 +119,20 @@ export const GetTestPlanTestsInput = z.object({
 });
 export type GetTestPlanTestsInput = z.input<typeof GetTestPlanTestsInput>;
 
+export const CleanupInput = z.object({
+  project: ProjectRef.refine((p) => !/^\d+$/.test(p), "cleanup precisa da chave do projeto (ex. DEMO)"),
+  /** Etiqueta a limpar; tem de começar por mcp-seed-. Por omissão a de hoje. */
+  label: z
+    .string()
+    .regex(/^mcp-seed-[A-Za-z0-9._-]{1,200}$/, "só se limpam etiquetas mcp-seed-… (as que o servidor põe)")
+    .optional(),
+  /** Pastas adicionais a apagar (com as subpastas). Nunca a raiz. */
+  folders: z.array(FolderPath.refine((p) => p !== "/", "não se apaga a raiz")).max(100).optional(),
+  /** Só conta o que apagaria. */
+  dryRun: z.boolean().optional(),
+});
+export type CleanupInput = z.input<typeof CleanupInput>;
+
 export const GraphQLInput = z.object({
   query: z.string().min(1).max(100_000),
   variables: z.record(z.string(), z.unknown()).default({}),

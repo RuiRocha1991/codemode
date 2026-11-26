@@ -7,7 +7,7 @@ import { MemoryXray } from "./helpers/memory-xray.js";
 function setup() {
   const mem = new MemoryXray();
   const fake = fakeFetch(mem.handle);
-  return { mem, fake, api: new XrayApi(makeClient(fake.fetch)) };
+  return { mem, fake, api: new XrayApi(makeClient(fake.fetch), { now: () => new Date('2026-11-26T10:00:00Z') }) };
 }
 
 describe("Test Plans", () => {
@@ -26,7 +26,7 @@ describe("Test Plans", () => {
     const { fake, api } = setup();
     await api.createTestPlan({ project: "DEMO", summary: "P", fixVersions: ["v2.0"], labels: ["l"] });
     expect(fake.calls[0]?.variables.jira).toEqual({
-      fields: { summary: "P", project: { key: "DEMO" }, labels: ["l"], fixVersions: [{ name: "v2.0" }] },
+      fields: { summary: "P", project: { key: "DEMO" }, labels: ["l", "mcp-seed-2026-11-26"], fixVersions: [{ name: "v2.0" }] },
     });
   });
 

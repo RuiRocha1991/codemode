@@ -7,7 +7,7 @@ import { MemoryXray } from "./helpers/memory-xray.js";
 function setup() {
   const mem = new MemoryXray();
   const fake = fakeFetch(mem.handle);
-  return { mem, fake, api: new XrayApi(makeClient(fake.fetch)) };
+  return { mem, fake, api: new XrayApi(makeClient(fake.fetch), { now: () => new Date('2026-11-26T10:00:00Z') }) };
 }
 
 describe("xray.createTests", () => {
@@ -34,7 +34,7 @@ describe("xray.createTests", () => {
     const byType = Object.fromEntries(fake.calls.map((c) => [(c.variables.testType as { name: string }).name, c.variables]));
     expect(byType.Manual).toMatchObject({
       steps: [{ action: "a" }],
-      jira: { fields: { summary: "M", project: { key: "DEMO" }, labels: ["l1"], fixVersions: [{ name: "v1.0" }] } },
+      jira: { fields: { summary: "M", project: { key: "DEMO" }, labels: ["l1", "mcp-seed-2026-11-26"], fixVersions: [{ name: "v1.0" }] } },
     });
     expect(byType.Cucumber).toMatchObject({ gherkin: "Feature: x" });
     expect(byType.Generic).toMatchObject({ unstructured: "def" });
@@ -80,5 +80,20 @@ describe("xray.createTests", () => {
     await expect(api.createTests([{ type: "Outro", project: "DEMO", summary: "x" } as never])).rejects.toThrow(XrayValidationError);
     await expect(api.createTests([{ type: "Generic", project: "10000", summary: "x", definition: "d" }])).rejects.toThrow(/chave/);
     expect(fake.calls).toHaveLength(0);
+  });
+});
+
+describe("etiqueta automática", () => {
+  it("tudo o que se cria leva mcp-seed-<data>", async () => {
+    const { mem, api } = setup();
+    const out = await api.createTests([{ type: "Generic", project: "DEMO", summary: "G", definition: "d" }]);
+    expect(mem.tests.get(out[0]!.issueId)?.labels).toEqual(["mcp-seed-2026-11-26"]);
+    expect(api.seedLabel).toBe("mcp-seed-2026-11-26");
+  });
+
+  it("não duplica se já foi pedida", async () => {
+    const { mem, api } = setup();
+    const out = await api.createTests([{ type: "Generic", project: "DEMO", summary: "G", definition: "d", labels: ["mcp-seed-2026-11-26", "x"] }]);
+    expect(mem.tests.get(out[0]!.issueId)?.labels).toEqual(["mcp-seed-2026-11-26", "x"]);
   });
 });

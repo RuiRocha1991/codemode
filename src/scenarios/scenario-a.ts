@@ -34,7 +34,7 @@ export interface Verification {
 export async function runScenarioA(xray: XrayApi, options: ScenarioAOptions): Promise<ScenarioAResult> {
   const { project, folders = 10, tests = 200, maxDepth = 4, seed = Date.now() } = options;
   const rng = makeRng(seed);
-  const rootFolder = options.rootFolder ?? `/cenarioA-${seed}`;
+  const rootFolder = options.rootFolder ?? `/mcp-seed-cenarioA-${seed}`;
 
   const found = await xray.getTests({ jql: `project = ${project}`, max: tests });
   if (found.length < tests) {

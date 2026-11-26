@@ -8,7 +8,7 @@ Critério de saída do M1: cada cenário corre **com uma chamada `execute`** no 
 ```bash
 npm run build
 export XRAY_LOCAL_CLIENT_ID=… XRAY_LOCAL_CLIENT_SECRET=…
-claude mcp add xray-local -e XRAY_ENV=local -e XRAY_LOCAL_CLIENT_ID -e XRAY_LOCAL_CLIENT_SECRET -- node dist/index.js
+claude mcp add xray-local -e XRAY_ENV=local -- node "$(pwd)/dist/index.js"   # segredos: ver README
 ```
 
 Projeto de testes (por exemplo `DEMO`) com pelo menos 200 testes para o cenário A
