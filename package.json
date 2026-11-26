@@ -13,7 +13,8 @@
     "start": "node dist/index.js",
     "introspect": "tsx scripts/introspect.ts",
     "scenario:a": "tsx scripts/scenario-a.ts",
-    "scenario:b": "tsx scripts/scenario-b.ts"
+    "scenario:b": "tsx scripts/scenario-b.ts",
+    "integration": "tsx scripts/integration.ts"
   },
   "repository": {
     "type": "git",
