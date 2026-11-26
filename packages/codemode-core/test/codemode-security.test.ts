@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runInSandbox, type ApiFunctions } from "../src/codemode/sandbox.js";
+import { runInSandbox, type ApiFunctions } from "../src/sandbox.js";
 
 /**
  * XMCM-24 — código que tenta usar rede, ficheiros, process, ler segredos ou correr para além
