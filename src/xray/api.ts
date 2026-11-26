@@ -2,6 +2,9 @@ import type { z } from "zod";
 import type { GraphQLClient } from "./graphql.js";
 import {
   AddTestsToFolderInput,
+  AddTestsToTestPlanInput,
+  CreateTestPlanInput,
+  GetTestPlanTestsInput,
   CountTestsInFolderInput,
   CreateFolderInput,
   CreateTestInput,
@@ -35,6 +38,12 @@ interface RawTest {
   testType?: { name?: string } | null;
   folder?: { path?: string } | null;
   jira?: { key?: string; summary?: string; labels?: string[] } | null;
+}
+
+interface RawTestPlan {
+  issueId: string;
+  jira?: { key?: string; summary?: string; labels?: string[]; fixVersions?: ({ name?: string } | string)[] } | null;
+  tests?: TestResults | null;
 }
 
 interface TestResults {
@@ -112,6 +121,64 @@ export class CreateTestsError extends Error {
         `${created.length} foram criados (${created.map((c) => c.key).slice(0, 10).join(", ")}${created.length > 10 ? ", …" : ""}).\n${sample}`,
     );
   }
+}
+
+const CREATE_TEST_PLAN = /* GraphQL */ `
+  mutation CreateTestPlan($testIssueIds: [String], $jira: JSON!) {
+    createTestPlan(testIssueIds: $testIssueIds, jira: $jira) {
+      testPlan {
+        issueId
+        jira(fields: ["key"])
+      }
+      warnings
+    }
+  }
+`;
+
+const ADD_TESTS_TO_TEST_PLAN = /* GraphQL */ `
+  mutation AddTestsToTestPlan($issueId: String!, $testIssueIds: [String]!) {
+    addTestsToTestPlan(issueId: $issueId, testIssueIds: $testIssueIds) {
+      addedTests
+      warning
+    }
+  }
+`;
+
+const GET_TEST_PLAN = /* GraphQL */ `
+  query GetTestPlan($issueId: String!, $limit: Int!, $start: Int) {
+    getTestPlan(issueId: $issueId) {
+      issueId
+      jira(fields: ["key", "summary", "labels", "fixVersions"])
+      tests(limit: $limit, start: $start) {
+        total
+        start
+        limit
+        results {
+          issueId
+          projectId
+          testType { name }
+          folder { path }
+          jira(fields: ["key", "summary", "labels"])
+        }
+      }
+    }
+  }
+`;
+
+export interface CreatedTestPlan {
+  issueId: string;
+  key: string;
+}
+
+export interface TestPlanDetails {
+  issueId: string;
+  key: string;
+  summary: string;
+  labels: string[];
+  fixVersions: string[];
+  tests: TestSummary[];
+  /** Total de testes no plano (pode ser maior que tests.length se max for menor). */
+  totalTests: number;
 }
 
 const CREATE_FOLDER = /* GraphQL */ `
@@ -324,6 +391,70 @@ export class XrayApi {
     const { project, path, includeDescendants } = parseInput("countTestsInFolder", CountTestsInFolderInput, input);
     const projectId = await this.resolveProjectId(project);
     return this.countTests({ projectId, folder: { path: normalizeFolderPath(path), includeDescendants } });
+  }
+
+  /**
+   * Cria um Test Plan. A versão vai em `fixVersions` (a versão tem de existir no projeto Jira);
+   * `testIssueIds` (até 100) enche-o já na criação, o resto com addTestsToTestPlan.
+   */
+  async createTestPlan(input: CreateTestPlanInput): Promise<CreatedTestPlan> {
+    const t = parseInput("createTestPlan", CreateTestPlanInput, input);
+    const fields: Record<string, unknown> = { summary: t.summary, project: { key: t.project } };
+    const labels = this.labelsFor(t.labels);
+    if (labels.length) fields.labels = labels;
+    if (t.fixVersions?.length) fields.fixVersions = t.fixVersions.map((name) => ({ name }));
+    const { createTestPlan } = await this.client.request<{
+      createTestPlan: { testPlan: { issueId: string; jira?: { key?: string } } };
+    }>(CREATE_TEST_PLAN, { testIssueIds: t.testIssueIds ?? [], jira: { fields } });
+    return { issueId: createTestPlan.testPlan.issueId, key: createTestPlan.testPlan.jira?.key ?? "" };
+  }
+
+  /** Acrescenta testes a um Test Plan por lotes de 100. Devolve os IDs realmente acrescentados. */
+  async addTestsToTestPlan(input: AddTestsToTestPlanInput): Promise<{ added: string[] }> {
+    const { issueId, testIssueIds } = parseInput("addTestsToTestPlan", AddTestsToTestPlanInput, input);
+    const added: string[] = [];
+    for (const ids of chunk(testIssueIds, IDS_PER_REQUEST)) {
+      const { addTestsToTestPlan } = await this.client.request<{ addTestsToTestPlan: { addedTests?: string[] } }>(
+        ADD_TESTS_TO_TEST_PLAN,
+        { issueId, testIssueIds: ids },
+      );
+      added.push(...(addTestsToTestPlan.addedTests ?? []));
+    }
+    return { added };
+  }
+
+  /** Lê um Test Plan e os seus testes (paginado), para verificação. */
+  async getTestPlanTests(input: GetTestPlanTestsInput): Promise<TestPlanDetails> {
+    const { issueId, max } = parseInput("getTestPlanTests", GetTestPlanTestsInput, input);
+    const tests: TestSummary[] = [];
+    let header: { key: string; summary: string; labels: string[]; fixVersions: string[] } | undefined;
+    let total = 0;
+    let start = 0;
+    while (tests.length < max || !header) {
+      const limit = Math.min(PAGE_SIZE, Math.max(1, max - tests.length));
+      const { getTestPlan } = await this.client.request<{ getTestPlan: RawTestPlan | null }>(GET_TEST_PLAN, {
+        issueId,
+        limit,
+        start,
+      });
+      if (!getTestPlan) throw new XrayValidationError(`getTestPlanTests: o Test Plan ${issueId} não existe`);
+      header ??= {
+        key: getTestPlan.jira?.key ?? "",
+        summary: getTestPlan.jira?.summary ?? "",
+        labels: getTestPlan.jira?.labels ?? [],
+        fixVersions: (getTestPlan.jira?.fixVersions ?? []).map((v) => (typeof v === "string" ? v : (v.name ?? ""))),
+      };
+      total = getTestPlan.tests?.total ?? 0;
+      const page = getTestPlan.tests?.results ?? [];
+      for (const raw of page) {
+        const test = toTestSummary(raw);
+        this.rememberProject(test);
+        tests.push(test);
+      }
+      start += page.length;
+      if (page.length === 0 || start >= total) break;
+    }
+    return { issueId, ...header!, tests, totalTests: total };
   }
 
   /** Etiquetas a aplicar a uma issue criada. Ponto de extensão para a etiqueta automática (XMCM-28). */

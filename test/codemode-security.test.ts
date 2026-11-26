@@ -123,7 +123,7 @@ describe("sandbox: tentativas de fuga", () => {
   });
 
   it("os argumentos passam por JSON: funções e protótipos não atravessam", async () => {
-    const fns: ApiFunctions = { inspect: (a: any) => ({ tipo: typeof a, chaves: a && Object.keys(a) }) };
+    const fns: ApiFunctions = { inspect: (a) => ({ tipo: typeof a, chaves: a && Object.keys(a as object) }) };
     const r = await runInSandbox(`return await x.inspect({ f: () => 1, n: 2 })`, { apiName: "x", functions: fns });
     expect(r).toMatchObject({ ok: true, value: { tipo: "object", chaves: ["n"] } });
   });

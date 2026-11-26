@@ -97,6 +97,28 @@ export const CountTestsInFolderInput = z.object({
 });
 export type CountTestsInFolderInput = z.input<typeof CountTestsInFolderInput>;
 
+export const CreateTestPlanInput = z.object({
+  project: ProjectRef.refine((p) => !/^\d+$/.test(p), "createTestPlan precisa da chave do projeto (ex. DEMO)"),
+  summary: z.string().min(1).max(255),
+  /** Versões Jira (têm de existir no projeto), ex. ["v1.0"]. */
+  fixVersions: FixVersions.optional(),
+  labels: Labels.optional(),
+  testIssueIds: IssueIds.max(100).optional(),
+});
+export type CreateTestPlanInput = z.input<typeof CreateTestPlanInput>;
+
+export const AddTestsToTestPlanInput = z.object({
+  issueId: IssueId,
+  testIssueIds: IssueIds.min(1),
+});
+export type AddTestsToTestPlanInput = z.input<typeof AddTestsToTestPlanInput>;
+
+export const GetTestPlanTestsInput = z.object({
+  issueId: IssueId,
+  max: z.number().int().min(1).max(MAX_TESTS_PER_REQUEST).default(100),
+});
+export type GetTestPlanTestsInput = z.input<typeof GetTestPlanTestsInput>;
+
 export const GraphQLInput = z.object({
   query: z.string().min(1).max(100_000),
   variables: z.record(z.string(), z.unknown()).default({}),

@@ -4,11 +4,11 @@ import { runInSandbox, type ApiFunctions } from "../src/codemode/sandbox.js";
 
 // Uma API de exemplo, sem nada do Xray: prova que o módulo é genérico.
 const calc: ApiFunctions = {
-  add: ({ a, b }: any) => a + b,
-  sleep: ({ ms }: any) => new Promise((r) => setTimeout(() => r(ms), ms)),
+  add: (arg) => { const { a, b } = arg as { a: number; b: number }; return a + b; },
+  sleep: (arg) => { const { ms } = arg as { ms: number }; return new Promise((r) => setTimeout(() => r(ms), ms)); },
   fail: () => Promise.reject(new Error("a API disse não")),
   nothing: () => undefined,
-  big: ({ n }: any) => "x".repeat(n),
+  big: (arg) => "x".repeat((arg as { n: number }).n),
 };
 const run = (code: string, extra = {}) => runInSandbox(code, { apiName: "calc", functions: calc, ...extra });
 
