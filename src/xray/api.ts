@@ -1,11 +1,16 @@
 import type { z } from "zod";
 import type { GraphQLClient } from "./graphql.js";
 import {
+  AddTestsToFolderInput,
+  CountTestsInFolderInput,
+  CreateFolderInput,
   CreateTestInput,
   CreateTestsInput,
+  GetFolderTreeInput,
   GetTestsInput,
   GraphQLInput,
   parseInput,
+  normalizeFolderPath,
   ProjectRef,
   XrayValidationError,
 } from "./schemas.js";
@@ -109,6 +114,82 @@ export class CreateTestsError extends Error {
   }
 }
 
+const CREATE_FOLDER = /* GraphQL */ `
+  mutation CreateFolder($projectId: String!, $path: String!, $testIssueIds: [String]) {
+    createFolder(projectId: $projectId, path: $path, testIssueIds: $testIssueIds) {
+      folder { name path testsCount }
+      warnings
+    }
+  }
+`;
+
+const ADD_TESTS_TO_FOLDER = /* GraphQL */ `
+  mutation AddTestsToFolder($projectId: String!, $path: String!, $testIssueIds: [String]!) {
+    addTestsToFolder(projectId: $projectId, path: $path, testIssueIds: $testIssueIds) {
+      folder { name path testsCount }
+      warnings
+    }
+  }
+`;
+
+const GET_FOLDER = /* GraphQL */ `
+  query GetFolder($projectId: String!, $path: String!) {
+    getFolder(projectId: $projectId, path: $path) {
+      name
+      path
+      testsCount
+      folders
+    }
+  }
+`;
+
+/** Pasta do Test Repository. `folders` são as subpastas diretas, com a mesma forma. */
+export interface FolderNode {
+  name: string;
+  path: string;
+  /** Testes diretamente nesta pasta (sem subpastas). */
+  testsCount: number;
+  folders: FolderNode[];
+}
+
+/** Máximo de testes por pedido addTestsToFolder / addTestsToTestPlan. */
+export const IDS_PER_REQUEST = 100;
+
+export function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/** Soma `testsCount` da pasta e de todas as subpastas. */
+export function sumTests(node: FolderNode): number {
+  return node.testsCount + node.folders.reduce((n, f) => n + sumTests(f), 0);
+}
+
+/** Todas as pastas da árvore, sem a raiz pedida, em profundidade. */
+export function flattenFolders(node: FolderNode): FolderNode[] {
+  return node.folders.flatMap((f) => [f, ...flattenFolders(f)]);
+}
+
+function toFolderNode(raw: unknown): FolderNode {
+  const r = (raw ?? {}) as { name?: string; path?: string; testsCount?: number; folders?: unknown };
+  let children: unknown = r.folders;
+  // Na API real `folders` pode vir como JSON em texto.
+  if (typeof children === "string") {
+    try {
+      children = JSON.parse(children);
+    } catch {
+      children = [];
+    }
+  }
+  return {
+    name: r.name ?? "",
+    path: r.path ?? "/",
+    testsCount: r.testsCount ?? 0,
+    folders: Array.isArray(children) ? children.map(toFolderNode) : [],
+  };
+}
+
 export function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -189,6 +270,60 @@ export class XrayApi {
     };
     this.rememberProject(created);
     return created;
+  }
+
+  /**
+   * Cria uma pasta e, se `testIssueIds` vier, enche-a numa chamada.
+   * A pasta-mãe tem de existir; para criar uma cadeia use createFolder por ordem
+   * (/A, depois /A/B). Mais de 100 testes: cria e distribui o resto por lotes.
+   */
+  async createFolder(input: CreateFolderInput): Promise<{ path: string; testsCount: number }> {
+    const { project, path, testIssueIds = [] } = parseInput("createFolder", CreateFolderInput, input);
+    const projectId = await this.resolveProjectId(project);
+    const [first = [], ...rest] = chunk(testIssueIds, IDS_PER_REQUEST);
+    const { createFolder } = await this.client.request<{ createFolder: { folder: FolderNode } }>(CREATE_FOLDER, {
+      projectId,
+      path,
+      testIssueIds: first,
+    });
+    let testsCount = createFolder.folder.testsCount;
+    for (const ids of rest) testsCount = (await this.addBatch(projectId, path, ids)).testsCount;
+    return { path: createFolder.folder.path, testsCount };
+  }
+
+  /** Move testes existentes para uma pasta, por lotes de 100. Devolve o total de testes na pasta. */
+  async addTestsToFolder(input: AddTestsToFolderInput): Promise<{ path: string; testsCount: number }> {
+    const { project, path, testIssueIds } = parseInput("addTestsToFolder", AddTestsToFolderInput, input);
+    const projectId = await this.resolveProjectId(project);
+    let last = { path, testsCount: 0 };
+    for (const ids of chunk(testIssueIds, IDS_PER_REQUEST)) last = await this.addBatch(projectId, path, ids);
+    return last;
+  }
+
+  private async addBatch(projectId: string, path: string, ids: string[]) {
+    const { addTestsToFolder } = await this.client.request<{ addTestsToFolder: { folder: FolderNode } }>(
+      ADD_TESTS_TO_FOLDER,
+      { projectId, path, testIssueIds: ids },
+    );
+    return { path: addTestsToFolder.folder.path, testsCount: addTestsToFolder.folder.testsCount };
+  }
+
+  /**
+   * Árvore de pastas a partir de `path` (por omissão "/"), com testsCount por pasta.
+   * Serve para verificar: sumTests(tree) é o total de testes na árvore.
+   */
+  async getFolderTree(input: GetFolderTreeInput): Promise<FolderNode> {
+    const { project, path } = parseInput("getFolderTree", GetFolderTreeInput, input);
+    const projectId = await this.resolveProjectId(project);
+    const { getFolder } = await this.client.request<{ getFolder: unknown }>(GET_FOLDER, { projectId, path });
+    return toFolderNode(getFolder);
+  }
+
+  /** Quantos testes há numa pasta (e opcionalmente nas subpastas), sem os trazer. */
+  async countTestsInFolder(input: CountTestsInFolderInput): Promise<number> {
+    const { project, path, includeDescendants } = parseInput("countTestsInFolder", CountTestsInFolderInput, input);
+    const projectId = await this.resolveProjectId(project);
+    return this.countTests({ projectId, folder: { path: normalizeFolderPath(path), includeDescendants } });
   }
 
   /** Etiquetas a aplicar a uma issue criada. Ponto de extensão para a etiqueta automática (XMCM-28). */

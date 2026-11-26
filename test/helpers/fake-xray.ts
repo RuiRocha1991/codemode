@@ -1,5 +1,5 @@
 import { TokenProvider } from "../../src/xray/auth.js";
-import { GraphQLClient, type GraphQLClientOptions } from "../../src/xray/graphql.js";
+import { GraphQLClient, operationName, type GraphQLClientOptions } from "../../src/xray/graphql.js";
 
 export const AUTH_URL = "http://xray.test/api/v2/authenticate";
 export const GRAPHQL_URL = "http://xray.test/api/v2/graphql";
@@ -42,6 +42,7 @@ export function fakeFetch(handler: GraphQLHandler, opts: { token?: () => string 
   return {
     fetch: fetchImpl,
     calls,
+    ops: () => calls.map((c) => operationName(c.query)),
     get authCount() {
       return authCount;
     },
