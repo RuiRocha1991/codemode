@@ -4,6 +4,7 @@ import { loadEnvironment, publicView } from "./config/environments.js";
 import { stderrLogger } from "./log.js";
 import { createServer } from "./server.js";
 import { TokenProvider } from "./xray/auth.js";
+import { XrayApi } from "./xray/api.js";
 import { GraphQLClient } from "./xray/graphql.js";
 
 async function main(): Promise<void> {
@@ -16,7 +17,7 @@ async function main(): Promise<void> {
     logger: stderrLogger,
   });
   const client = new GraphQLClient({ envName: env.name, graphqlUrl: env.graphqlUrl, tokens, logger: stderrLogger });
-  const server = createServer({ env: publicView(env), client });
+  const server = createServer({ env: publicView(env), client, xray: new XrayApi(client) });
   await server.connect(new StdioServerTransport());
   stderrLogger("info", "servidor MCP xray a correr em stdio", { env: env.name, baseUrl: env.baseUrl });
 }
