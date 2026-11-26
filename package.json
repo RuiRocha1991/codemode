@@ -1,0 +1,46 @@
+{
+  "name": "xray-mcp-codemode",
+  "version": "0.1.0",
+  "description": "Servidor MCP do Xray Cloud em Code Mode, multi-ambiente (local/staging). Jira: XMCM.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build && npm audit --omit=dev",
+    "start": "node dist/index.js",
+    "introspect": "tsx scripts/introspect.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RuiRocha1991/codemode.git"
+  },
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/RuiRocha1991/codemode/issues"
+  },
+  "homepage": "https://github.com/RuiRocha1991/codemode#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.7",
+    "eslint": "10.15.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.74.0",
+    "vitest": "5.1.2"
+  },
+  "private": true,
+  "type": "module",
+  "bin": {
+    "xray-mcp": "dist/index.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
