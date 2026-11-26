@@ -77,3 +77,35 @@ describe("módulo Code Mode genérico", () => {
     await expect(runInSandbox("return 1", { apiName: "x", functions: { "a b": () => 1 } })).rejects.toThrow(/nome de função/);
   });
 });
+
+describe("nomes aninhados (gateway)", () => {
+  const nested: ApiFunctions = {
+    "jira.createVersion": (a) => ({ criada: (a as { name: string }).name }),
+    "jira.getIssue": () => "DEMO-1",
+    "xray.createTestPlan": () => ({ key: "DEMO-2" }),
+  };
+  const go = (code: string) => runInSandbox(code, { apiName: "mcp", functions: nested });
+
+  it("expõe mcp.jira.createVersion() e mcp.xray.createTestPlan()", async () => {
+    const r = await go(`return [await mcp.jira.createVersion({name:"v1"}), await mcp.xray.createTestPlan(), Object.keys(mcp)]`);
+    expect(r).toMatchObject({ ok: true, value: [{ criada: "v1" }, { key: "DEMO-2" }, ["jira", "xray"]], apiCalls: 2 });
+  });
+
+  it("os objetos aninhados também são imutáveis", async () => {
+    expect((await go(`mcp.jira.createVersion = () => 1; return 1`)).ok).toBe(false);
+    expect((await go(`mcp.jira.novo = () => 1; return 1`)).ok).toBe(false);
+    expect((await go(`mcp.outro = {}; return 1`)).ok).toBe(false);
+  });
+
+  it("recusa nomes que podiam alterar protótipos ou são ambíguos", async () => {
+    for (const bad of ["__proto__.x", "a.constructor", "a.prototype.b", "a..b", ".a", "a."]) {
+      await expect(runInSandbox("return 1", { apiName: "mcp", functions: { [bad]: () => 1 } })).rejects.toThrow(/nome de função inválido/);
+    }
+    await expect(runInSandbox("return 1", { apiName: "mcp", functions: { a: () => 1, "a.b": () => 1 } })).rejects.toThrow(/conflito/);
+  });
+
+  it("os nomes simples continuam a funcionar", async () => {
+    const r = await runInSandbox("return await x.add({a:1,b:2})", { apiName: "x", functions: { add: (a) => (a as { a: number; b: number }).a + (a as { a: number; b: number }).b } });
+    expect(r).toMatchObject({ ok: true, value: 3 });
+  });
+});

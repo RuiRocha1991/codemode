@@ -49,6 +49,17 @@ export type SandboxResult = SandboxSuccess | SandboxFailure;
 
 export const DEFAULT_TIMEOUT_MS = 120_000;
 const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+/** Nomes de função: simples (`getTests`) ou com pontos para aninhar (`jira.createVersion`). */
+const FN_PATH = /^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
+const FORBIDDEN_SEGMENTS = new Set(["__proto__", "prototype", "constructor"]);
+
+/** Valida um nome de função (com pontos opcionais). Lança se puder alterar protótipos. */
+export function assertFunctionName(name: string): void {
+  if (!FN_PATH.test(name)) throw new Error(`nome de função inválido: ${name}`);
+  for (const part of name.split(".")) {
+    if (FORBIDDEN_SEGMENTS.has(part)) throw new Error(`nome de função inválido (segmento reservado): ${name}`);
+  }
+}
 
 function timeoutMessage(ms: number): string {
   const t = ms >= 1000 ? `${+(ms / 1000).toFixed(1)} s` : `${ms} ms`;
@@ -59,6 +70,18 @@ function timeoutMessage(ms: number): string {
 function messageOf(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+/** `a` e `a.b` ao mesmo tempo não é possível: `a` seria função e objeto. */
+function assertNoPathConflicts(names: string[]): void {
+  const set = new Set(names);
+  for (const n of names) {
+    const parts = n.split(".");
+    for (let i = 1; i < parts.length; i++) {
+      const prefix = parts.slice(0, i).join(".");
+      if (set.has(prefix)) throw new Error(`conflito de nomes: ${prefix} é função e ${n} está dentro dele`);
+    }
+  }
 }
 
 /** Corre `code` (corpo de uma função async; pode usar await e return) na sandbox. */
@@ -73,7 +96,8 @@ export async function runInSandbox(code: string, options: SandboxOptions): Promi
   } = options;
   if (!IDENT.test(apiName)) throw new Error(`apiName inválido: ${apiName}`);
   const names = Object.keys(functions);
-  for (const n of names) if (!IDENT.test(n)) throw new Error(`nome de função inválido: ${n}`);
+  for (const n of names) assertFunctionName(n);
+  assertNoPathConflicts(names);
 
   const started = Date.now();
   const logs: string[] = [];
@@ -129,8 +153,14 @@ export async function runInSandbox(code: string, options: SandboxOptions): Promi
           return text === "undefined" ? undefined : JSON.parse(text);
         };
         const api = {};
-        for (const n of names) api[n] = call(n);
-        Object.defineProperty(globalThis, ${JSON.stringify(apiName)}, { value: Object.freeze(api), enumerable: true });
+        for (const n of names) {
+          const parts = n.split(".");
+          let o = api;
+          for (const part of parts.slice(0, -1)) o = (o[part] ??= {});
+          o[parts[parts.length - 1]] = call(n);
+        }
+        const freeze = (o) => { for (const k of Object.keys(o)) if (typeof o[k] === "object") freeze(o[k]); return Object.freeze(o); };
+        Object.defineProperty(globalThis, ${JSON.stringify(apiName)}, { value: freeze(api), enumerable: true });
         const fmt = (a) => { try { return typeof a === "string" ? a : JSON.stringify(a); } catch { return String(a); } };
         const send = (...a) => log.applySync(undefined, [a.map(fmt).join(" ")]);
         globalThis.console = Object.freeze({ log: send, info: send, warn: send, error: send, debug: send });
