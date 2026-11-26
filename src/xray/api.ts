@@ -1,5 +1,8 @@
+import type { z } from "zod";
 import type { GraphQLClient } from "./graphql.js";
 import {
+  CreateTestInput,
+  CreateTestsInput,
   GetTestsInput,
   GraphQLInput,
   parseInput,
@@ -53,6 +56,63 @@ const GET_TESTS = /* GraphQL */ `
   }
 `;
 
+const CREATE_TEST = /* GraphQL */ `
+  mutation CreateTest(
+    $testType: UpdateTestTypeInput
+    $steps: [CreateStepInput]
+    $gherkin: String
+    $unstructured: String
+    $folderPath: String
+    $jira: JSON!
+  ) {
+    createTest(
+      testType: $testType
+      steps: $steps
+      gherkin: $gherkin
+      unstructured: $unstructured
+      folderPath: $folderPath
+      jira: $jira
+    ) {
+      test {
+        issueId
+        projectId
+        testType { name }
+        jira(fields: ["key"])
+      }
+      warnings
+    }
+  }
+`;
+
+export interface CreatedTest {
+  issueId: string;
+  key: string;
+  type: "Manual" | "Cucumber" | "Generic";
+  projectId: string;
+}
+
+/** Alguns testes do lote falharam depois dos retries. Os criados ficam em `created`. */
+export class CreateTestsError extends Error {
+  override name = "CreateTestsError";
+  constructor(
+    readonly created: CreatedTest[],
+    readonly failed: { index: number; summary: string; error: string }[],
+  ) {
+    const sample = failed
+      .slice(0, 5)
+      .map((f) => `#${f.index} "${f.summary}": ${f.error}`)
+      .join("\n");
+    super(
+      `createTests: ${failed.length} de ${created.length + failed.length} falharam; ` +
+        `${created.length} foram criados (${created.map((c) => c.key).slice(0, 10).join(", ")}${created.length > 10 ? ", …" : ""}).\n${sample}`,
+    );
+  }
+}
+
+export function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export function toTestSummary(raw: RawTest): TestSummary {
   return {
     issueId: raw.issueId,
@@ -85,6 +145,55 @@ export class XrayApi {
   async getTests(input: GetTestsInput): Promise<TestSummary[]> {
     const { jql, max } = parseInput("getTests", GetTestsInput, input);
     return this.paginateTests({ jql }, max);
+  }
+
+  /**
+   * Cria testes em lote (Manual, Cucumber ou Generic): uma mutação createTest por teste,
+   * em paralelo até ao limite do cliente (5), com retry. Devolve os testes na ordem da entrada.
+   * Se algum falhar, lança CreateTestsError com os criados e os que falharam.
+   */
+  async createTests(inputs: CreateTestInput[]): Promise<CreatedTest[]> {
+    const parsed = parseInput("createTests", CreateTestsInput, inputs);
+    const settled = await Promise.allSettled(parsed.map((t) => this.createOne(t)));
+    const created: CreatedTest[] = [];
+    const failed: { index: number; summary: string; error: string }[] = [];
+    settled.forEach((r, index) => {
+      if (r.status === "fulfilled") created.push(r.value);
+      else failed.push({ index, summary: parsed[index]!.summary, error: errorMessage(r.reason) });
+    });
+    if (failed.length) throw new CreateTestsError(created, failed);
+    return created;
+  }
+
+  private async createOne(t: z.output<typeof CreateTestInput>): Promise<CreatedTest> {
+    const fields: Record<string, unknown> = { summary: t.summary, project: { key: t.project } };
+    const labels = this.labelsFor(t.labels);
+    if (labels.length) fields.labels = labels;
+    if (t.fixVersions?.length) fields.fixVersions = t.fixVersions.map((name) => ({ name }));
+    const variables: Record<string, unknown> = { testType: { name: t.type }, jira: { fields } };
+    if (t.type === "Manual") variables.steps = t.steps;
+    if (t.type === "Cucumber") variables.gherkin = t.gherkin;
+    if (t.type === "Generic") variables.unstructured = t.definition;
+    if (t.folderPath && t.folderPath !== "/") variables.folderPath = t.folderPath;
+
+    const { createTest } = await this.client.request<{ createTest: { test: RawTest; warnings?: string[] } }>(
+      CREATE_TEST,
+      variables,
+    );
+    const key = createTest.test.jira?.key ?? "";
+    const created: CreatedTest = {
+      issueId: createTest.test.issueId,
+      key,
+      type: t.type,
+      projectId: createTest.test.projectId,
+    };
+    this.rememberProject(created);
+    return created;
+  }
+
+  /** Etiquetas a aplicar a uma issue criada. Ponto de extensão para a etiqueta automática (XMCM-28). */
+  protected labelsFor(labels: string[] | undefined): string[] {
+    return labels ?? [];
   }
 
   /** Executa uma query ou mutação GraphQL arbitrária, com variáveis. Para o que a API tipada não cobre. */
