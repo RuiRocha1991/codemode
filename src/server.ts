@@ -1,6 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { PublicEnvironment } from "./config/environments.js";
+import { CodeMode } from "./codemode/codemode.js";
+import { registerCodeModeTools } from "./codemode/tools.js";
+import type { XrayApi } from "./xray/api.js";
+import { XRAY_DECLARATIONS } from "./xray/declarations.js";
+import { xrayFunctions } from "./xray/functions.js";
 import type { GraphQLClient } from "./xray/graphql.js";
 import { whoami } from "./xray/whoami.js";
 
@@ -10,6 +15,9 @@ export const SERVER_VERSION = "0.1.0";
 export interface ServerDeps {
   env: PublicEnvironment;
   client: GraphQLClient;
+  xray: XrayApi;
+  /** Para testes: tempo limite do execute. */
+  executeTimeoutMs?: number;
 }
 
 export function jsonResult(value: unknown): CallToolResult {
@@ -28,7 +36,8 @@ export function createServer(deps: ServerDeps): McpServer {
     {
       instructions:
         `Servidor MCP do Xray Cloud ligado ao ambiente "${deps.env.name}" (${deps.env.baseUrl}). ` +
-        `Todas as operações acontecem neste ambiente; para outro ambiente use a outra instância registada.`,
+        `Todas as operações acontecem neste ambiente; para outro ambiente use a outra instância registada. ` +
+        `Fluxo: chame describe uma vez, depois execute com código que usa o objeto xray.`,
     },
   );
 
@@ -49,6 +58,13 @@ export function createServer(deps: ServerDeps): McpServer {
       }
     },
   );
+
+  const codeMode = new CodeMode({
+    api: { name: "xray", functions: xrayFunctions(deps.xray), declarations: XRAY_DECLARATIONS },
+    context: () => ({ environment: deps.env.name, baseUrl: deps.env.baseUrl }),
+    ...(deps.executeTimeoutMs !== undefined && { timeoutMs: deps.executeTimeoutMs }),
+  });
+  registerCodeModeTools(server, codeMode);
 
   return server;
 }

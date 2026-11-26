@@ -2,13 +2,16 @@ import { describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer, SERVER_NAME } from "../src/server.js";
+import { XrayApi } from "../src/xray/api.js";
 import { fakeFetch, makeClient } from "./helpers/fake-xray.js";
 
 async function connect(handler: Parameters<typeof fakeFetch>[0]) {
   const fake = fakeFetch(handler);
+  const graphql = makeClient(fake.fetch);
   const server = createServer({
     env: { name: "local", baseUrl: "http://localhost:8080" },
-    client: makeClient(fake.fetch),
+    client: graphql,
+    xray: new XrayApi(graphql),
   });
   const client = new Client({ name: "teste", version: "0.0.0" });
   const [a, b] = InMemoryTransport.createLinkedPair();
