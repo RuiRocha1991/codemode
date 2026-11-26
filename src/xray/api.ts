@@ -5,6 +5,7 @@ import {
   AddTestsToTestPlanInput,
   CreateTestPlanInput,
   GetTestPlanTestsInput,
+  CleanupInput,
   CountTestsInFolderInput,
   CreateFolderInput,
   CreateTestInput,
@@ -13,6 +14,7 @@ import {
   GetTestsInput,
   GraphQLInput,
   parseInput,
+  MAX_TESTS_PER_REQUEST,
   normalizeFolderPath,
   ProjectRef,
   XrayValidationError,
@@ -181,6 +183,56 @@ export interface TestPlanDetails {
   totalTests: number;
 }
 
+const DELETE_FOLDER = /* GraphQL */ `
+  mutation DeleteFolder($projectId: String!, $path: String!) {
+    deleteFolder(projectId: $projectId, path: $path)
+  }
+`;
+
+const DELETE_TEST = /* GraphQL */ `
+  mutation DeleteTest($issueId: String!) {
+    deleteTest(issueId: $issueId)
+  }
+`;
+
+const DELETE_TEST_PLAN = /* GraphQL */ `
+  mutation DeleteTestPlan($issueId: String!) {
+    deleteTestPlan(issueId: $issueId)
+  }
+`;
+
+const GET_TEST_PLANS = /* GraphQL */ `
+  query GetTestPlans($jql: String, $limit: Int!, $start: Int) {
+    getTestPlans(jql: $jql, limit: $limit, start: $start) {
+      total
+      start
+      limit
+      results {
+        issueId
+      }
+    }
+  }
+`;
+
+export const SEED_LABEL_PREFIX = "mcp-seed-";
+/** Pastas na raiz com este prefixo são consideradas dados de teste do servidor. */
+export const SEED_FOLDER_PREFIX = "mcp-seed";
+
+export interface CleanupResult {
+  label: string;
+  dryRun: boolean;
+  tests: number;
+  testPlans: number;
+  /** Pastas apagadas (só as de topo; as subpastas vão com elas). */
+  folders: string[];
+}
+
+/** Mantém só as pastas que não estão dentro de outra da lista. */
+export function topMostFolders(paths: string[]): string[] {
+  const sorted = [...new Set(paths)].sort();
+  return sorted.filter((p) => !sorted.some((q) => q !== p && p.startsWith(q + "/")));
+}
+
 const CREATE_FOLDER = /* GraphQL */ `
   mutation CreateFolder($projectId: String!, $path: String!, $testIssueIds: [String]) {
     createFolder(projectId: $projectId, path: $path, testIssueIds: $testIssueIds) {
@@ -281,7 +333,21 @@ export class XrayApi {
   /** chave do projeto → projectId, aprendido com getTests e createTests. */
   private readonly projectIds = new Map<string, string>();
 
-  constructor(private readonly client: GraphQLClient) {}
+  /** Pastas criadas por esta instância, para a limpeza poder apagá-las. */
+  private readonly createdFolders = new Map<string, Set<string>>();
+  private readonly now: () => Date;
+
+  constructor(
+    private readonly client: GraphQLClient,
+    options: { now?: () => Date } = {},
+  ) {
+    this.now = options.now ?? (() => new Date());
+  }
+
+  /** Etiqueta que esta instância põe em tudo o que cria hoje: mcp-seed-AAAA-MM-DD. */
+  get seedLabel(): string {
+    return `${SEED_LABEL_PREFIX}${this.now().toISOString().slice(0, 10)}`;
+  }
 
   get environment(): string {
     return this.client.envName;
@@ -353,6 +419,7 @@ export class XrayApi {
       path,
       testIssueIds: first,
     });
+    this.trackFolder(project, path);
     let testsCount = createFolder.folder.testsCount;
     for (const ids of rest) testsCount = (await this.addBatch(projectId, path, ids)).testsCount;
     return { path: createFolder.folder.path, testsCount };
@@ -457,9 +524,74 @@ export class XrayApi {
     return { issueId, ...header!, tests, totalTests: total };
   }
 
-  /** Etiquetas a aplicar a uma issue criada. Ponto de extensão para a etiqueta automática (XMCM-28). */
+  /** Etiquetas de uma issue criada: as pedidas mais a etiqueta mcp-seed-<data>. */
   protected labelsFor(labels: string[] | undefined): string[] {
-    return labels ?? [];
+    return [...new Set([...(labels ?? []), this.seedLabel])];
+  }
+
+  /**
+   * Limpeza por etiqueta (XMCM-28): apaga os testes e Test Plans com a etiqueta `mcp-seed-…`
+   * (por omissão a de hoje) e as pastas criadas por esta instância ou que começam por `/mcp-seed`.
+   * Só aceita etiquetas `mcp-seed-…`: não apaga dados que o servidor não criou.
+   * Com dryRun: true só conta, sem apagar.
+   */
+  async cleanup(input: CleanupInput): Promise<CleanupResult> {
+    const { project, label = this.seedLabel, folders = [], dryRun } = parseInput("cleanup", CleanupInput, input);
+    const projectId = await this.resolveProjectId(project).catch(() => undefined);
+
+    const tests = await this.paginateTests({ jql: `project = ${project} AND labels = ${label}` }, MAX_TESTS_PER_REQUEST);
+    const plans = await this.findPlansByLabel(project, label);
+
+    // Pastas: as passadas, as criadas nesta sessão e as raízes /mcp-seed* do repositório.
+    const candidates = new Set<string>([...folders, ...(this.createdFolders.get(project) ?? [])]);
+    if (projectId) {
+      const root = await this.getFolderTree({ project, path: "/" }).catch(() => undefined);
+      for (const f of root?.folders ?? []) if (f.name.startsWith(SEED_FOLDER_PREFIX)) candidates.add(f.path);
+    }
+    const toDelete = topMostFolders([...candidates]);
+
+    if (!dryRun) {
+      // Primeiro as pastas (os testes mantêm-se no repositório), depois testes e planos.
+      if (projectId) {
+        for (const path of toDelete) {
+          await this.client
+            .request(DELETE_FOLDER, { projectId, path })
+            .catch((e: unknown) => {
+              // Pasta já apagada por um pai: não é erro.
+              if (!/não existe|does not exist|not found/i.test(errorMessage(e))) throw e;
+            });
+        }
+        this.createdFolders.delete(project);
+      }
+      await Promise.all(tests.map((t) => this.client.request(DELETE_TEST, { issueId: t.issueId })));
+      await Promise.all(plans.map((p) => this.client.request(DELETE_TEST_PLAN, { issueId: p.issueId })));
+    }
+    return {
+      label,
+      dryRun: !!dryRun,
+      tests: tests.length,
+      testPlans: plans.length,
+      folders: toDelete,
+    };
+  }
+
+  private async findPlansByLabel(project: string, label: string): Promise<{ issueId: string }[]> {
+    const out: { issueId: string }[] = [];
+    let start = 0;
+    for (;;) {
+      const { getTestPlans: page } = await this.client.request<{
+        getTestPlans: { total: number; results: { issueId: string }[] };
+      }>(GET_TEST_PLANS, { jql: `project = ${project} AND labels = ${label}`, limit: PAGE_SIZE, start });
+      out.push(...page.results);
+      start += page.results.length;
+      if (page.results.length === 0 || start >= page.total) return out;
+    }
+  }
+
+  protected trackFolder(project: string, path: string): void {
+    const set = this.createdFolders.get(project) ?? new Set<string>();
+    set.add(path);
+    this.createdFolders.set(project, set);
   }
 
   /** Executa uma query ou mutação GraphQL arbitrária, com variáveis. Para o que a API tipada não cobre. */

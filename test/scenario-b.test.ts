@@ -74,8 +74,8 @@ describe("exemplos do Claude via execute (XMCM-25)", () => {
     const body = out(r);
     expect(body.value).toMatchObject({ pastas: 10, testes: 200 });
     expect(body.apiCalls).toBeLessThan(40); // vs ~210 chamadas de ferramentas clássicas
-    const tree = await api.getFolderTree({ project: "DEMO", path: "/cenarioA-claude" });
-    expect(verifyScenarioA({ rootFolder: "/cenarioA-claude", folderPaths: [], testsDistributed: 200, perFolder: {}, tree }, { folders: 10, tests: 200 }).ok).toBe(true);
+    const tree = await api.getFolderTree({ project: "DEMO", path: "/mcp-seed-cenarioA-claude" });
+    expect(verifyScenarioA({ rootFolder: "/mcp-seed-cenarioA-claude", folderPaths: [], testsDistributed: 200, perFolder: {}, tree }, { folders: 10, tests: 200 }).ok).toBe(true);
   });
 
   it("cenário B: uma chamada execute, pastas por versão e tipo e 3 planos", async () => {

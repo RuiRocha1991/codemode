@@ -99,6 +99,14 @@ declare const xray: {
   /** Lê um Test Plan e os seus testes (até max). Serve para verificar o cenário. */
   getTestPlanTests(input: { issueId: string; max?: number }): Promise<TestPlanDetails>;
 
+  /**
+   * Apaga os dados de teste criados pelo servidor: testes e Test Plans com a etiqueta mcp-seed-<data>
+   * (por omissão a de hoje; passe label para outro dia) e as pastas criadas nesta sessão ou na raiz
+   * com nome mcp-seed*. Só etiquetas mcp-seed-… são aceites. Use dryRun: true para ver o que apagaria.
+   * Tudo o que xray.createTests e xray.createTestPlan criam leva essa etiqueta automaticamente.
+   */
+  cleanup(input: { project: string; label?: string; folders?: string[]; dryRun?: boolean }): Promise<{ label: string; dryRun: boolean; tests: number; testPlans: number; folders: string[] }>;
+
   /** Query ou mutação GraphQL do Xray, sempre com variáveis. Para o que as funções acima não cobrem. */
   graphql<T = unknown>(input: { query: string; variables?: Record<string, unknown> }): Promise<T>;
 };

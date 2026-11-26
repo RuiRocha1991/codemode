@@ -1,7 +1,7 @@
 // Cenário A — o que o Claude escreve para: "cria 10 pastas com vários níveis e nomes
 // aleatórios e espalha 200 testes por elas". Uma única chamada execute.
 const project = "DEMO";
-const root = "/cenarioA-claude";
+const root = "/mcp-seed-cenarioA-claude";
 const nomes = ["Alfa", "Beta", "Gama", "Delta", "Epsilon", "Zeta", "Eta", "Theta", "Iota", "Kappa"]
   .sort(() => Math.random() - 0.5);
 
