@@ -22,12 +22,12 @@ as versões no Jira e os Test Plans no Xray.
 1. ✅ **Extrair o core para um pacote** — sem mudar comportamento (PR #5).
 2. ✅ **Gateway**: ligar a servidores MCP (stdio e HTTP), gerar declarações TS a partir dos JSON Schemas, expor
    `servers.<nome>.<ferramenta>()` na sandbox, ferramentas `describe`/`execute` do gateway.
-3. **Autenticação por servidor, Xray como ferramentas clássicas (XMCM-27)** (variáveis de ambiente, cabeçalhos, OAuth da Atlassian), exemplo Jira + Xray num
-   só script e documentação.
+3. ✅ **Autenticação por servidor (token de API: bearer/basic, sem OAuth), Xray como ferramentas clássicas (XMCM-27, `XRAY_MODE`),**
+   exemplo Jira + Xray num só script (`examples/gateway-jira-xray.js`) e documentação.
 
 ## Riscos a ter presentes
 
-- Cada MCP tem a sua autenticação; o OAuth da Atlassian exige uma sessão interativa.
+- Cada MCP tem a sua autenticação; o OAuth da Atlassian exige uma sessão interativa e **não está implementado** (usa-se token de API).
 - O gateway executa ferramentas de **vários** sistemas num só código gerado: o raio de ação é maior. A sandbox
   continua sem rede nem segredos; as credenciais ficam só no processo do gateway.
 - Os nomes e esquemas das ferramentas vêm de servidores externos: tratar como dados não confiáveis (nomes

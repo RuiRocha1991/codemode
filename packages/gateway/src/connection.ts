@@ -1,7 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { resolveEnvRefs, resolveRecord, type ServerConfig } from "./config.js";
+import { buildHttpHeaders, resolveEnvRefs, resolveRecord, type ServerConfig } from "./config.js";
 
 export interface McpTool {
   name: string;
@@ -67,9 +67,25 @@ export async function connectServer(name: string, cfg: ServerConfig, env: NodeJS
     await client.connect(transport);
   } else {
     const transport = new StreamableHTTPClientTransport(new URL(cfg.url), {
-      requestInit: { headers: resolveRecord(cfg.headers, env, `${name}.headers`) },
+      requestInit: { headers: buildHttpHeaders(cfg, env, name) },
     });
-    await client.connect(transport);
+    try {
+      await client.connect(transport);
+    } catch (err) {
+      throw explainConnectError(name, err);
+    }
   }
   return new ClientConnection(name, client, cfg.timeoutMs);
+}
+
+/** 401/403 → mensagem acionável (sem OAuth: o gateway só envia o token configurado). */
+function explainConnectError(name: string, err: unknown): Error {
+  const msg = err instanceof Error ? err.message : String(err);
+  const code = (err as { code?: unknown } | null)?.code; // o SDK põe aqui o estado HTTP
+  if (code === 401 || code === 403 || /\b(401|403)\b|unauthori[sz]ed|forbidden/i.test(msg) || (err instanceof Error && err.name === "UnauthorizedError")) {
+    return new Error(
+      `${name}: o servidor recusou as credenciais (${msg}). Confirme o token em "auth" ou "headers" e que a variável de ambiente está definida. OAuth não é suportado: use um token de API.`,
+    );
+  }
+  return err instanceof Error ? err : new Error(msg);
 }

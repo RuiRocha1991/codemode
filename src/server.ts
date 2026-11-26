@@ -3,6 +3,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { PublicEnvironment } from "./config/environments.js";
 import { CodeMode, registerCodeModeTools } from "@codemode/core";
 import type { XrayApi } from "./xray/api.js";
+import { registerClassicTools } from "./xray/classic-tools.js";
 import { XRAY_DECLARATIONS } from "./xray/declarations.js";
 import { xrayFunctions } from "./xray/functions.js";
 import type { GraphQLClient } from "./xray/graphql.js";
@@ -11,7 +12,23 @@ import { whoami } from "./xray/whoami.js";
 export const SERVER_NAME = "xray";
 export const SERVER_VERSION = "0.1.0";
 
+/**
+ * Como o servidor expõe a API xray:
+ * - codemode (por omissão): describe + execute (o assistente escreve código);
+ * - tools: ferramentas MCP clássicas, uma por função (para o gateway e clientes sem Code Mode);
+ * - both: as duas.
+ */
+export const SERVER_MODES = ["codemode", "tools", "both"] as const;
+export type ServerMode = (typeof SERVER_MODES)[number];
+
+export function parseMode(value: string | undefined): ServerMode {
+  const v = (value ?? "codemode").trim().toLowerCase();
+  if ((SERVER_MODES as readonly string[]).includes(v)) return v as ServerMode;
+  throw new Error(`XRAY_MODE inválido "${value}". Valores: ${SERVER_MODES.join(", ")}.`);
+}
+
 export interface ServerDeps {
+  mode?: ServerMode;
   env: PublicEnvironment;
   client: GraphQLClient;
   xray: XrayApi;
@@ -57,6 +74,10 @@ export function createServer(deps: ServerDeps): McpServer {
       }
     },
   );
+
+  const mode = deps.mode ?? "codemode";
+  if (mode !== "codemode") registerClassicTools(server, deps.xray);
+  if (mode === "tools") return server;
 
   const codeMode = new CodeMode({
     api: { name: "xray", functions: xrayFunctions(deps.xray), declarations: XRAY_DECLARATIONS },
