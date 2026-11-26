@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "check": "npm run typecheck && npm run lint && npm test && npm run build && npm audit --omit=dev",
     "start": "node dist/index.js",
-    "introspect": "tsx scripts/introspect.ts"
+    "introspect": "tsx scripts/introspect.ts",
+    "scenario:a": "tsx scripts/scenario-a.ts"
   },
   "repository": {
     "type": "git",
