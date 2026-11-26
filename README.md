@@ -131,14 +131,14 @@ XRAY_ENV=staging npm run integration -- --project DEMO  # A + B + limpeza, em qu
 | Decisão | Porquê | Consequência |
 | --- | --- | --- |
 | Code Mode desde a primeira versão | Os cenários mexem em centenas de testes | Uma chamada por pedido; os dados não passam pelo contexto do modelo; exige sandbox |
-| Code Mode dentro do servidor, num módulo separado (`src/codemode/`) | Fica pronto a 2/12 sem montar um gateway | O módulo recebe um objeto de API qualquer e não sabe que é o Xray: extrair para um gateway é mover código |
+| Code Mode dentro do servidor, num módulo separado (agora o pacote `packages/codemode-core`) | Fica pronto a 2/12 sem montar um gateway | O módulo recebe um objeto de API qualquer e não sabe que é o Xray: extrair para um gateway é mover código |
 | Construir de raiz em TypeScript | Sem acesso ao código do MCP oficial | Mais trabalho; controlo total e sem terceiros com acesso aos segredos |
 | Uma instância por ambiente | Evitar escrever no ambiente errado | Duas entradas no Claude Code |
 | API tipada de primitivas; o assistente planeia | Cada pedido organiza os dados de forma diferente | Menos código; pedidos novos sem mexer no servidor |
 | Produção bloqueada no código | Os clientes podem vir a usar produção | Abrir produção exige modo de simulação e confirmação (XMCM-34/35) |
 
 Estrutura: `src/config` (ambientes) · `src/xray` (autenticação, cliente GraphQL, API tipada, declarações) ·
-`src/codemode` (sandbox, describe/execute, genérico) · `src/scenarios` · `scripts` · `examples` (código que o assistente escreve).
+`packages/codemode-core` (**pacote `@codemode/core`**: sandbox, describe/execute, genérico, sem Xray) · `src/scenarios` · `scripts` · `examples` (código que o assistente escreve).
 
 ## Problemas comuns
 

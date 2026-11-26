@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CodeMode } from "../src/codemode/codemode.js";
-import { runInSandbox, type ApiFunctions } from "../src/codemode/sandbox.js";
+import { CodeMode } from "../src/codemode.js";
+import { runInSandbox, type ApiFunctions } from "../src/sandbox.js";
 
 // Uma API de exemplo, sem nada do Xray: prova que o módulo é genérico.
 const calc: ApiFunctions = {

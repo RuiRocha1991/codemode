@@ -1,8 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { PublicEnvironment } from "./config/environments.js";
-import { CodeMode } from "./codemode/codemode.js";
-import { registerCodeModeTools } from "./codemode/tools.js";
+import { CodeMode, registerCodeModeTools } from "@codemode/core";
 import type { XrayApi } from "./xray/api.js";
 import { XRAY_DECLARATIONS } from "./xray/declarations.js";
 import { xrayFunctions } from "./xray/functions.js";

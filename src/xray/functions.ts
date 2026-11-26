@@ -1,4 +1,4 @@
-import type { ApiFunctions } from "../codemode/sandbox.js";
+import type { ApiFunctions } from "@codemode/core";
 import type { XrayApi } from "./api.js";
 
 /** Nomes das funções que o Code Mode expõe como `xray.<nome>`. Lista fechada: só estas chegam à sandbox. */
