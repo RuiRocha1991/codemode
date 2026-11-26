@@ -51,11 +51,13 @@ export XRAY_STAGING_CLIENT_ID=…  XRAY_STAGING_CLIENT_SECRET=…
 Uma instância por ambiente: o ambiente está sempre visível e é impossível escrever no errado.
 
 ```bash
-claude mcp add xray-local   -e XRAY_ENV=local   -e XRAY_LOCAL_CLIENT_ID   -e XRAY_LOCAL_CLIENT_SECRET   -- node "$(pwd)/dist/index.js"
-claude mcp add xray-staging -e XRAY_ENV=staging -e XRAY_STAGING_CLIENT_ID -e XRAY_STAGING_CLIENT_SECRET -- node "$(pwd)/dist/index.js"
+claude mcp add xray-local   -e XRAY_ENV=local   -- node "$(pwd)/dist/index.js"
+claude mcp add xray-staging -e XRAY_ENV=staging -- node "$(pwd)/dist/index.js"
 ```
 
-(`-e NOME` sem valor passa o valor da sua shell.) Para o Jira (criar versões, ler issues), registe um MCP Jira
+Os segredos têm de chegar ao processo do servidor como variáveis de ambiente. Confirme com `whoami` que chegam; se
+o Claude Code não as herdar da sua shell, passe-as no registo com `-e XRAY_LOCAL_CLIENT_ID=… -e XRAY_LOCAL_CLIENT_SECRET=…`
+(ficam na configuração do Claude Code, fora do repositório). Para o Jira (criar versões, ler issues), registe um MCP Jira
 separado: [docs/mcp-jira.md](docs/mcp-jira.md).
 
 **Remover:** `claude mcp remove xray-local` e `claude mcp remove xray-staging`. Os dados de teste criados
