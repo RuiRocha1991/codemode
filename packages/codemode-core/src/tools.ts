@@ -5,8 +5,34 @@ import type { CodeMode } from "./codemode.js";
 
 const MAX_CODE_CHARS = 100_000;
 
-function text(value: unknown, isError = false): CallToolResult {
+export function text(value: unknown, isError = false): CallToolResult {
   return { ...(isError && { isError: true }), content: [{ type: "text", text: JSON.stringify(value, null, 2) }] };
+}
+
+export const EXECUTE_DESCRIPTION =
+  "Corre código JavaScript numa sandbox isolada (sem rede, ficheiros nem process) com a API já autenticada. " +
+  "O código é o corpo de uma função async: use await e `return` para o resultado final. " +
+  "Faça o trabalho todo numa só chamada (ciclos, Promise.all) e devolva só o que precisa (contagens, chaves, amostras). " +
+  "Tempo limite de 120 s. Escreve dados reais nos sistemas ligados: confirme-os com `describe`.";
+
+/** Regista só a ferramenta `execute` (o gateway tem o seu próprio `describe`). */
+export function registerExecuteTool(server: McpServer, codeMode: CodeMode, description: string = EXECUTE_DESCRIPTION): void {
+  server.registerTool(
+    "execute",
+    {
+      title: "Executar código",
+      description,
+      inputSchema: { code: z.string().min(1).max(MAX_CODE_CHARS).describe("Corpo da função async a executar") },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    },
+    async ({ code }) => {
+      const result = await codeMode.execute(code);
+      if (result.ok) {
+        return text({ value: result.value ?? null, logs: result.logs, apiCalls: result.apiCalls, durationMs: result.durationMs });
+      }
+      return text({ error: result.message, kind: result.kind, logs: result.logs, apiCalls: result.apiCalls, durationMs: result.durationMs }, true);
+    },
+  );
 }
 
 /**
@@ -27,24 +53,12 @@ export function registerCodeModeTools(server: McpServer, codeMode: CodeMode): vo
     async () => text(codeMode.describe()),
   );
 
-  server.registerTool(
-    "execute",
-    {
-      title: "Executar código contra a API xray",
-      description:
-        "Corre código JavaScript numa sandbox isolada (sem rede, ficheiros nem process) com o objeto `xray` já autenticado e " +
-        "preso ao ambiente desta instância. O código é o corpo de uma função async: use await e `return` para o resultado final. " +
-        "Faça o trabalho todo numa só chamada (ciclos, Promise.all) e devolva só o que precisa (contagens, chaves, amostras). " +
-        "Tempo limite de 120 s. Escreve dados reais no ambiente: confirme o ambiente com `describe`.",
-      inputSchema: { code: z.string().min(1).max(MAX_CODE_CHARS).describe("Corpo da função async a executar") },
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
-    },
-    async ({ code }) => {
-      const result = await codeMode.execute(code);
-      if (result.ok) {
-        return text({ value: result.value ?? null, logs: result.logs, apiCalls: result.apiCalls, durationMs: result.durationMs });
-      }
-      return text({ error: result.message, kind: result.kind, logs: result.logs, apiCalls: result.apiCalls, durationMs: result.durationMs }, true);
-    },
+  registerExecuteTool(
+    server,
+    codeMode,
+    "Corre código JavaScript numa sandbox isolada (sem rede, ficheiros nem process) com o objeto `xray` já autenticado e " +
+      "preso ao ambiente desta instância. O código é o corpo de uma função async: use await e `return` para o resultado final. " +
+      "Faça o trabalho todo numa só chamada (ciclos, Promise.all) e devolva só o que precisa (contagens, chaves, amostras). " +
+      "Tempo limite de 120 s. Escreve dados reais no ambiente: confirme o ambiente com `describe`.",
   );
 }

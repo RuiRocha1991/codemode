@@ -15,14 +15,14 @@ as versões no Jira e os Test Plans no Xray.
 | --- | --- |
 | `packages/codemode-core` (`@codemode/core`) | Sandbox, `CodeMode` (describe/execute) e registo das ferramentas MCP. **Não sabe nada do Xray.** |
 | `src/` (`xray-mcp-codemode`) | Servidor MCP do Xray em Code Mode (versão de 2/12); usa o core |
-| `packages/gateway` (a criar) | Cliente MCP + geração da API + servidor gateway |
+| `packages/gateway` (`@codemode/gateway`) | Cliente MCP + geração da API TypeScript + servidor gateway (`describe`/`execute`) |
 
 ## Passos (um PR por passo, base `release/gateway-code-mode`)
 
-1. **Extrair o core para um pacote** — sem mudar comportamento.
-2. **Gateway**: ligar a servidores MCP (stdio e HTTP), gerar declarações TS a partir dos JSON Schemas, expor
+1. ✅ **Extrair o core para um pacote** — sem mudar comportamento (PR #5).
+2. ✅ **Gateway**: ligar a servidores MCP (stdio e HTTP), gerar declarações TS a partir dos JSON Schemas, expor
    `servers.<nome>.<ferramenta>()` na sandbox, ferramentas `describe`/`execute` do gateway.
-3. **Autenticação por servidor** (variáveis de ambiente, cabeçalhos, OAuth da Atlassian), exemplo Jira + Xray num
+3. **Autenticação por servidor, Xray como ferramentas clássicas (XMCM-27)** (variáveis de ambiente, cabeçalhos, OAuth da Atlassian), exemplo Jira + Xray num
    só script e documentação.
 
 ## Riscos a ter presentes

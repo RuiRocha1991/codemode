@@ -4,7 +4,7 @@
   "description": "Servidor MCP do Xray Cloud em Code Mode, multi-ambiente (local/staging). Jira: XMCM.",
   "main": "dist/index.js",
   "scripts": {
-    "build": "npm run build -w @codemode/core && tsc -p tsconfig.build.json",
+    "build": "npm run build -w @codemode/core && npm run build -w @codemode/gateway && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
@@ -14,7 +14,8 @@
     "introspect": "tsx scripts/introspect.ts",
     "scenario:a": "tsx scripts/scenario-a.ts",
     "scenario:b": "tsx scripts/scenario-b.ts",
-    "integration": "tsx scripts/integration.ts"
+    "integration": "tsx scripts/integration.ts",
+    "gateway": "node packages/gateway/dist/main.js"
   },
   "repository": {
     "type": "git",
