@@ -90,6 +90,18 @@ Peça em linguagem natural. O assistente chama `describe` (declarações TypeScr
 | `execute` | Corre código na sandbox com o objeto `xray` já autenticado; devolve só o valor final |
 | `whoami` | Ambiente da instância e confirmação de que a autenticação funciona |
 
+### Modos (`XRAY_MODE`)
+
+| Valor | Ferramentas expostas |
+| --- | --- |
+| `codemode` (omissão) | `describe`, `execute`, `whoami` |
+| `tools` | `whoami` + uma ferramenta MCP clássica por operação (`getTests`, `createTests`, `createFolder`, `addTestsToFolder`, `getFolderTree`, `countTestsInFolder`, `createTestPlan`, `addTestsToTestPlan`, `getTestPlanTests`, `cleanup`) |
+| `both` | Tudo |
+
+`tools` é o que o [gateway](docs/gateway.md) usa: ele liga-se ao Xray como a qualquer servidor MCP e gera a API a partir
+dos esquemas. `cleanup` vem marcada como destrutiva. As ferramentas clássicas usam a mesma `XrayApi`, por isso mantêm
+a etiqueta automática `mcp-seed-…` e o bloqueio da produção. Um valor inválido impede o arranque.
+
 ### API `xray` na sandbox
 
 `getTests` (JQL, paginado) · `createTests` (Manual, Cucumber, Generic; lote até 500) · `createFolder` ·

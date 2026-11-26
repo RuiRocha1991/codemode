@@ -31,10 +31,23 @@ const Stdio = Common.extend({
   cwd: z.string().optional(),
 });
 
+/**
+ * Autenticação por servidor HTTP, sem OAuth: token de API (bearer) ou utilizador+token (basic).
+ * Os valores levam normalmente ${VAR}, para o segredo ficar no ambiente e não no ficheiro.
+ */
+const Auth = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("bearer"), token: z.string().min(1) }),
+  z.object({ type: z.literal("basic"), username: z.string().min(1), password: z.string().min(1) }),
+]);
+
 const Http = Common.extend({
   transport: z.literal("http"),
   url: z.url(),
   headers: z.record(z.string(), z.string()).default({}),
+  auth: Auth.optional(),
+}).refine((c) => !c.auth || !Object.keys(c.headers).some((h) => h.toLowerCase() === "authorization"), {
+  message: 'use "auth" OU o cabeçalho Authorization em "headers", não os dois',
+  path: ["auth"],
 });
 
 export const ServerConfigSchema = z.discriminatedUnion("transport", [Stdio, Http]);
@@ -81,6 +94,23 @@ export function resolveEnvRefs(value: string, env: NodeJS.ProcessEnv, where: str
     if (v === undefined || v === "") throw new ConfigError(`${where}: a variável de ambiente ${name} não está definida`);
     return v;
   });
+}
+
+/** Cabeçalhos finais de um servidor HTTP: `headers` + Authorization derivado de `auth`. */
+export function buildHttpHeaders(
+  cfg: { headers: Record<string, string>; auth?: z.output<typeof Auth> | undefined },
+  env: NodeJS.ProcessEnv,
+  where: string,
+): Record<string, string> {
+  const headers = resolveRecord(cfg.headers, env, `${where}.headers`);
+  if (cfg.auth?.type === "bearer") {
+    headers["Authorization"] = `Bearer ${resolveEnvRefs(cfg.auth.token, env, `${where}.auth.token`)}`;
+  } else if (cfg.auth?.type === "basic") {
+    const user = resolveEnvRefs(cfg.auth.username, env, `${where}.auth.username`);
+    const pass = resolveEnvRefs(cfg.auth.password, env, `${where}.auth.password`);
+    headers["Authorization"] = `Basic ${Buffer.from(`${user}:${pass}`).toString("base64")}`;
+  }
+  return headers;
 }
 
 export function resolveRecord(rec: Record<string, string>, env: NodeJS.ProcessEnv, where: string): Record<string, string> {

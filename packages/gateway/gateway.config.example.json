@@ -6,6 +6,7 @@
       "args": ["dist/index.js"],
       "env": {
         "XRAY_ENV": "local",
+        "XRAY_MODE": "tools",
         "XRAY_LOCAL_CLIENT_ID": "${XRAY_LOCAL_CLIENT_ID}",
         "XRAY_LOCAL_CLIENT_SECRET": "${XRAY_LOCAL_CLIENT_SECRET}"
       }
