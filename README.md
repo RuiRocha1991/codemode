@@ -32,7 +32,7 @@ Os URLs ficam em [`config/environments.json`](config/environments.json) (no repo
 
 | Ambiente | Estado | Nota |
 | --- | --- | --- |
-| `local` | ligado | `http://localhost:8080` — **ajuste a porta** (ou use `XRAY_BASE_URL`) |
+| `local` | ligado | `http://localhost:3001` (API REST do Xray local; sobreponha com `XRAY_BASE_URL`) |
 | `staging` | ligado | URL marcador — **ponha o URL real** |
 | `prod-us`, `prod-eu` | **desligados e bloqueados** | o código recusa arrancar; um URL `*.xray.cloud.getxray.app` é recusado mesmo vindo de `XRAY_BASE_URL` |
 
