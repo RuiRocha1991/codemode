@@ -1,8 +1,8 @@
 {
   "local": {
-    "baseUrl": "http://localhost:8080",
+    "baseUrl": "http://localhost:3001",
     "enabled": true,
-    "description": "Servidor Xray local, ligado ao Jira de testes por túnel. Porta a confirmar (XMCM-7); pode ser sobreposta com XRAY_BASE_URL."
+    "description": "Servidor Xray local, ligado ao Jira de testes por túnel. Porta 3001 (API REST do Xray local); pode ser sobreposta com XRAY_BASE_URL."
   },
   "staging": {
     "baseUrl": "https://xray-staging.invalid",
