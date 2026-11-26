@@ -1,0 +1,24 @@
+{
+  "local": {
+    "baseUrl": "http://localhost:8080",
+    "enabled": true,
+    "description": "Servidor Xray local, ligado ao Jira de testes por túnel. Porta a confirmar (XMCM-7); pode ser sobreposta com XRAY_BASE_URL."
+  },
+  "staging": {
+    "baseUrl": "https://xray-staging.invalid",
+    "enabled": true,
+    "description": "Xray staging. URL a confirmar (XMCM-7); pode ser sobreposto com XRAY_BASE_URL."
+  },
+  "prod-us": {
+    "baseUrl": "https://us.xray.cloud.getxray.app",
+    "enabled": false,
+    "production": true,
+    "description": "Produção EUA. Bloqueada no código até XMCM-35."
+  },
+  "prod-eu": {
+    "baseUrl": "https://eu.xray.cloud.getxray.app",
+    "enabled": false,
+    "production": true,
+    "description": "Produção UE. Bloqueada no código até XMCM-35."
+  }
+}
