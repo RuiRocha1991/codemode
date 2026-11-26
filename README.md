@@ -125,6 +125,15 @@ XRAY_ENV=staging npm run integration -- --project DEMO  # A + B + limpeza, em qu
 | `npm run check` | typecheck, lint, testes, build e `npm audit` (corre em cada alteração, também no CI) |
 | `npm test` | Testes unitários (vitest, sem rede) |
 | `npm run introspect` | Compara as operações usadas com o schema real do ambiente |
+| `npm run gateway` | Arranca o gateway (precisa de `GATEWAY_CONFIG`; ver [packages/gateway](packages/gateway/README.md)) |
+
+## Gateway (branch `release/gateway-code-mode`)
+
+O pacote [`@codemode/gateway`](packages/gateway/README.md) liga-se a **vários** servidores MCP (por exemplo Jira e Xray), gera uma API
+TypeScript a partir das ferramentas deles e corre o código do assistente na mesma sandbox: `mcp.jira.createVersion(...)`, `mcp.xray.createTestPlan(...)`
+num só `execute`. Autenticação por servidor com token de API (bearer/basic; **sem OAuth**). Exemplo em
+[`examples/gateway-jira-xray.js`](examples/gateway-jira-xray.js); detalhes em [docs/gateway.md](docs/gateway.md). Esta parte **não está no `main`**.
+Nada foi validado contra Jira nem Xray reais.
 
 ## Segurança
 
@@ -150,7 +159,7 @@ XRAY_ENV=staging npm run integration -- --project DEMO  # A + B + limpeza, em qu
 | Produção bloqueada no código | Os clientes podem vir a usar produção | Abrir produção exige modo de simulação e confirmação (XMCM-34/35) |
 
 Estrutura: `src/config` (ambientes) · `src/xray` (autenticação, cliente GraphQL, API tipada, declarações) ·
-`packages/codemode-core` (**pacote `@codemode/core`**: sandbox, describe/execute, genérico, sem Xray) · `src/scenarios` · `scripts` · `examples` (código que o assistente escreve).
+`packages/codemode-core` (**pacote `@codemode/core`**: sandbox, describe/execute, genérico, sem Xray) · `packages/gateway` (**pacote `@codemode/gateway`**: gateway para vários servidores MCP; só na release) · `src/scenarios` · `scripts` · `examples` (código que o assistente escreve).
 
 ## Problemas comuns
 
