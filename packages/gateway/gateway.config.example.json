@@ -1,0 +1,26 @@
+{
+  "servers": {
+    "xray": {
+      "transport": "stdio",
+      "command": "node",
+      "args": ["dist/index.js"],
+      "env": {
+        "XRAY_ENV": "local",
+        "XRAY_LOCAL_CLIENT_ID": "${XRAY_LOCAL_CLIENT_ID}",
+        "XRAY_LOCAL_CLIENT_SECRET": "${XRAY_LOCAL_CLIENT_SECRET}"
+      }
+    },
+    "jira": {
+      "transport": "stdio",
+      "command": "uvx",
+      "args": ["mcp-atlassian"],
+      "env": {
+        "JIRA_URL": "${JIRA_URL}",
+        "JIRA_USERNAME": "${JIRA_USERNAME}",
+        "JIRA_API_TOKEN": "${JIRA_API_TOKEN}"
+      },
+      "tools": { "deny": ["*delete*"] },
+      "timeoutMs": 60000
+    }
+  }
+}
